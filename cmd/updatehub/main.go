@@ -90,6 +90,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Info("private mount enabled")
+
 	osFs := afero.NewOsFs()
 	settings := &updatehub.Settings{}
 

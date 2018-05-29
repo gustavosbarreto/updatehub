@@ -11,6 +11,7 @@ package tarball
 import (
 	"fmt"
 	"path"
+	"syscall"
 
 	"github.com/OSSystems/pkg/log"
 	"github.com/spf13/afero"
@@ -131,6 +132,8 @@ func (tb *TarballObject) Install(downloadDir string) error {
 	if err != nil {
 		errorList = append(errorList, err)
 	}
+
+	syscall.Sync()
 
 	umountErr := tb.Umount(tempDirPath)
 	if umountErr != nil {

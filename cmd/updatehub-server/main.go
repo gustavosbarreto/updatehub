@@ -33,9 +33,9 @@ import (
 )
 
 type AgentInfo struct {
-	Version   string                    `json:"version"`
-	Config    updatehub.Settings        `json:"config"`
-	Firmware  metadata.FirmwareMetadata `json:"firmware"`
+	Version  string                    `json:"version"`
+	Config   updatehub.Settings        `json:"config"`
+	Firmware metadata.FirmwareMetadata `json:"firmware"`
 }
 
 type ProbeResponse struct {
@@ -110,6 +110,18 @@ func main() {
 				log.Fatalf("%s: already mounted", path)
 				os.Exit(1)
 			}
+		}
+
+		// enter in a new mount NS for isolating changes to the mount table
+		if err := syscall.Unshare(syscall.CLONE_NEWNS); err != nil {
+			log.Fatalf("failed to enter private mount NS: %s", err)
+			os.Exit(1)
+		}
+
+		err = syscall.Mount("", "/", "updatehub", syscall.MS_REC|syscall.MS_SLAVE, "")
+		if err != nil {
+			log.Fatalf("failed to mark rootfs as rslave: %s", err)
+			os.Exit(1)
 		}
 
 		if err = syscall.Mount(*mount, path, *fstype, syscall.MS_RDONLY, ""); err != nil {

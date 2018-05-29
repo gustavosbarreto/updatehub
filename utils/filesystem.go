@@ -8,22 +8,13 @@
 
 package utils
 
-/*
-#include <stdlib.h>
-#include <sys/mount.h>
-#include <errno.h>
-#include <string.h>
-
-static int errno_wrapper() {
-    return errno;
-}
-*/
-import "C"
 import (
 	"fmt"
+	"log"
+	"os"
 	"os/exec"
 	"strings"
-	"unsafe"
+	"syscall"
 
 	"github.com/spf13/afero"
 )
@@ -89,38 +80,35 @@ func (fs *FileSystem) Format(targetDevice string, fsType string, formatOptions s
 }
 
 func (fs *FileSystem) Mount(targetDevice string, mountPath string, fsType string, mountOptions string) error {
-	cTargetDevice := C.CString(targetDevice)
-	defer C.free(unsafe.Pointer(cTargetDevice))
+	// enter in a new mount NS for isolating changes to the mount table
+	if err := syscall.Unshare(syscall.CLONE_NEWNS); err != nil {
+		log.Fatalf("failed to enter private mount NS: %s", err)
+		os.Exit(1)
+	}
 
-	cMountPath := C.CString(mountPath)
-	defer C.free(unsafe.Pointer(cMountPath))
+	err := syscall.Mount("", "/", "updatehub", syscall.MS_REC|syscall.MS_SLAVE, "")
+	if err != nil {
+		log.Fatalf("failed to mark rootfs as rslave: %s", err)
+		os.Exit(1)
+	}
 
-	cFSType := C.CString(fsType)
-	defer C.free(unsafe.Pointer(cFSType))
-
-	cMountOptions := C.CString(mountOptions)
-	defer C.free(unsafe.Pointer(cMountOptions))
-
-	r := C.mount(cTargetDevice, cMountPath, cFSType, 0, unsafe.Pointer(cMountOptions))
-	if r == -1 {
-		return fmt.Errorf("Couldn't mount '%s': %s", targetDevice, C.GoString(C.strerror(C.errno_wrapper())))
+	err = syscall.Mount(targetDevice, mountPath, fsType, 0, mountOptions)
+	if err != nil {
+		return fmt.Errorf("Couldn't mount '%s': %s", targetDevice, err)
 	}
 
 	return nil
 }
 
 func (fs *FileSystem) Umount(mountPath string) error {
-	cMountPath := C.CString(mountPath)
-	defer C.free(unsafe.Pointer(cMountPath))
-
-	r := C.umount(cMountPath)
-	if r == -1 {
-		return fmt.Errorf("Couldn't umount '%s': %s", mountPath, C.GoString(C.strerror(C.errno_wrapper())))
+	err := syscall.Unmount(mountPath, 0)
+	if err != nil {
+		return fmt.Errorf("Couldn't umount '%s': %s", mountPath, err)
 	}
 
 	return nil
 }
 
 func (fs *FileSystem) TempDir(fsb afero.Fs, prefix string) (string, error) {
-	return afero.TempDir(fsb, "", prefix)
+	return afero.TempDir(fsb, "/coisa", prefix)
 }
