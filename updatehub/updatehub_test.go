@@ -392,6 +392,7 @@ func TestProcessCurrentStateWithCancellable(t *testing.T) {
 	poll := NewPollState(0)
 
 	uh, _ := newTestUpdateHub(poll, aim)
+	uh.TimeStep = time.Minute
 	uh.CmdLineExecuter = cm
 	uh.Store = fs
 	uh.Reporter = rm
